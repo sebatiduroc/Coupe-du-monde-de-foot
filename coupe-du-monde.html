@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coupe du Monde 2026</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icons.min.css">
+<style>
+:root{
+  --bg:#0d1b2a; --panel:#1b263b; --accent:#2ec4b6; --gold:#ffd166; --text:#e0e1dd; --muted:#9aa5b1;
+}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: linear-gradient(135deg,#0d1b2a,#1b263b);
+  color:var(--text);
+  min-height:100vh;
+  padding:20px;
+}
+h1{
+  text-align:center;
+  font-size:2.2rem;
+  margin-bottom:5px;
+  color:var(--gold);
+  letter-spacing:1px;
+}
+.subtitle{text-align:center; color:var(--muted); margin-bottom:25px;}
+
+.tabs{display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-bottom:25px;}
+.tab-btn{
+  background:var(--panel); color:var(--text); border:1px solid #2ec4b633;
+  padding:8px 16px; border-radius:20px; cursor:pointer; font-size:0.9rem;
+  transition:.2s;
+}
+.tab-btn:hover{background:#2ec4b633;}
+.tab-btn.active{background:var(--accent); color:#0d1b2a; font-weight:bold;}
+
+.content{max-width:1100px; margin:0 auto;}
+.group-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px;}
+
+.group-card{
+  background:var(--panel); border-radius:14px; padding:16px;
+  box-shadow:0 4px 15px rgba(0,0,0,.3);
+}
+.group-card h2{color:var(--gold); margin-bottom:10px; font-size:1.1rem; border-bottom:1px solid #ffffff22; padding-bottom:6px;}
+
+table.standings{width:100%; font-size:.85rem; margin-bottom:12px; border-collapse:collapse;}
+table.standings th, table.standings td{padding:4px 6px; text-align:center;}
+table.standings th{color:var(--muted); font-weight:normal; font-size:.75rem;}
+table.standings td.team{text-align:left; cursor:pointer;}
+table.standings td.team:hover{color:var(--accent);}
+table.standings tr:nth-child(odd) td{background:#ffffff05;}
+
+.match{
+  display:flex; align-items:center; justify-content:space-between;
+  background:#0d1b2a; border-radius:8px; padding:8px 10px; margin-bottom:6px;
+  cursor:pointer; transition:.15s; font-size:.88rem;
+}
+.match:hover{background:#27374d; transform:translateX(3px);}
+.match .teams{display:flex; align-items:center; gap:8px;}
+.match .team-name{min-width:90px;}
+.match .score{font-weight:bold; color:var(--gold); min-width:50px; text-align:center;}
+.match .meta{color:var(--muted); font-size:.75rem; text-align:right;}
+.flag-icon{font-size:1.2em; border-radius:2px;}
+
+/* Modal */
+.overlay{
+  position:fixed; inset:0; background:rgba(0,0,0,.7);
+  display:none; align-items:center; justify-content:center; z-index:100;
+  padding:15px;
+}
+.overlay.show{display:flex;}
+.modal{
+  background:var(--panel); border-radius:14px; padding:22px; max-width:600px; width:100%;
+  max-height:85vh; overflow-y:auto; position:relative;
+  box-shadow:0 10px 40px rgba(0,0,0,.5);
+}
+.modal h2{color:var(--gold); margin-bottom:10px; text-align:center;}
+.close-btn{
+  position:absolute; top:12px; right:14px; background:none; border:none;
+  color:var(--text); font-size:1.4rem; cursor:pointer;
+}
+.modal-score{
+  display:flex; align-items:center; justify-content:center; gap:16px;
+  font-size:1.6rem; font-weight:bold; margin:15px 0;
+}
+.modal-score .flag-icon{font-size:2rem;}
+.modal-score .vs{color:var(--muted); font-size:1rem;}
+.modal-meta{text-align:center; color:var(--muted); margin-bottom:15px; font-size:.85rem;}
+
+.scorers{display:flex; justify-content:space-between; gap:15px; margin-bottom:18px; font-size:.85rem;}
+.scorers div{flex:1;}
+.scorers ul{list-style:none; padding-left:0; margin-top:5px;}
+.scorers ul li{padding:2px 0;}
+
+.stats-table{width:100%; font-size:.85rem; border-collapse:collapse;}
+.stats-table td{padding:5px 4px;}
+.stats-table td.label{color:var(--muted); text-align:center; width:40%; font-size:.78rem;}
+.stats-table td.val{width:30%; font-weight:bold;}
+.bar-wrap{height:6px; background:#ffffff1a; border-radius:3px; overflow:hidden; margin-top:3px;}
+.bar{height:100%; border-radius:3px;}
+.bar.home{background:var(--accent);}
+.bar.away{background:var(--gold);}
+.val.left{text-align:right;}
+.val.right{text-align:left;}
+
+/* Country stats modal */
+.country-stats h3{color:var(--accent); margin:14px 0 6px;}
+.country-row{display:flex; align-items:center; gap:10px; margin-bottom:8px; font-size:.85rem;}
+.country-row .clabel{width:160px; color:var(--muted);}
+.country-row .cbar-wrap{flex:1; height:10px; background:#ffffff1a; border-radius:5px; overflow:hidden;}
+.country-row .cbar{height:100%; background:linear-gradient(90deg,var(--accent),var(--gold));}
+.country-row .cval{width:60px; text-align:right; font-weight:bold;}
+.country-flag-header{display:flex; align-items:center; justify-content:center; gap:10px; font-size:1.8rem;}
+
+.knockout{display:flex; flex-direction:column; gap:18px;}
+.ko-round h2{color:var(--gold); font-size:1.05rem; margin-bottom:8px; border-bottom:1px solid #ffffff22; padding-bottom:5px;}
+.ko-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:10px;}
+
+footer{text-align:center; color:var(--muted); font-size:.75rem; margin-top:40px; padding:10px;}
+</style>
+</head>
+<body>
+
+<h1>🏆 Coupe du Monde 2026</h1>
+<p class="subtitle">Calendrier, scores, statistiques par match et par équipe</p>
+<p id="updateBanner" style="text-align:center; font-size:.8rem; color:var(--accent); transition:opacity 1s; min-height:1.2em;"></p>
+
+<div class="tabs" id="tabs"></div>
+<div class="content" id="content"></div>
+
+<!-- Modal match -->
+<div class="overlay" id="matchOverlay">
+  <div class="modal" id="matchModal"></div>
+</div>
+
+<!-- Modal pays -->
+<div class="overlay" id="countryOverlay">
+  <div class="modal" id="countryModal"></div>
+</div>
+
+<footer>App statique générée pour GitHub Pages — Données modifiables dans le fichier data (variable DATA en haut du script).</footer>
+
+<script>
+/* =========================================================
+   DONNÉES — à compléter / mettre à jour au fil du tournoi.
+   Codes pays = code ISO 2 lettres (pour flag-icons.css)
+   ========================================================= */
+const DATA = {
+  // 48 équipes qualifiées, réparties dans les 12 groupes officiels (tirage du 5/12/2025)
+  teamsByGroup: {
+    A: [{code:"mx", name:"Mexique"},{code:"kr", name:"Corée du Sud"},{code:"cz", name:"Tchéquie"},{code:"za", name:"Afrique du Sud"}],
+    B: [{code:"ca", name:"Canada"},{code:"ba", name:"Bosnie-Herzégovine"},{code:"ch", name:"Suisse"},{code:"qa", name:"Qatar"}],
+    C: [{code:"br", name:"Brésil"},{code:"ma", name:"Maroc"},{code:"ht", name:"Haïti"},{code:"gb-sct", name:"Écosse"}],
+    D: [{code:"us", name:"États-Unis"},{code:"py", name:"Paraguay"},{code:"au", name:"Australie"},{code:"tr", name:"Turquie"}],
+    E: [{code:"de", name:"Allemagne"},{code:"cw", name:"Curaçao"},{code:"ci", name:"Côte d'Ivoire"},{code:"ec", name:"Équateur"}],
+    F: [{code:"nl", name:"Pays-Bas"},{code:"jp", name:"Japon"},{code:"se", name:"Suède"},{code:"tn", name:"Tunisie"}],
+    G: [{code:"be", name:"Belgique"},{code:"eg", name:"Égypte"},{code:"ir", name:"Iran"},{code:"nz", name:"Nouvelle-Zélande"}],
+    H: [{code:"es", name:"Espagne"},{code:"cv", name:"Cap-Vert"},{code:"sa", name:"Arabie Saoudite"},{code:"uy", name:"Uruguay"}],
+    I: [{code:"fr", name:"France"},{code:"sn", name:"Sénégal"},{code:"iq", name:"Irak"},{code:"no", name:"Norvège"}],
+    J: [{code:"ar", name:"Argentine"},{code:"dz", name:"Algérie"},{code:"at", name:"Autriche"},{code:"jo", name:"Jordanie"}],
+    K: [{code:"pt", name:"Portugal"},{code:"cd", name:"RD Congo"},{code:"uz", name:"Ouzbékistan"},{code:"co", name:"Colombie"}],
+    L: [{code:"gb-eng", name:"Angleterre"},{code:"hr", name:"Croatie"},{code:"gh", name:"Ghana"},{code:"pa", name:"Panama"}]
+  },
+
+  groups: {}, // construit dynamiquement ci-dessous par buildGroups()
+
+  knockout: {
+    "16es de finale": [
+      emptyMatch("r32-1","?","?","2026-06-28"),
+      emptyMatch("r32-2","?","?","2026-06-28"),
+      emptyMatch("r32-3","?","?","2026-06-29"),
+      emptyMatch("r32-4","?","?","2026-06-29")
+      // ➜ 16 matchs au total, complétés une fois la phase de groupes terminée.
+    ],
+    "8es de finale": [
+      emptyMatch("r16-1","?","?","2026-07-02"),
+      emptyMatch("r16-2","?","?","2026-07-03")
+    ],
+    "Quarts de finale": [
+      emptyMatch("qf-1","?","?","2026-07-09")
+    ],
+    "Demi-finales": [
+      emptyMatch("sf-1","?","?","2026-07-14")
+    ],
+    "Finale": [
+      emptyMatch("final","?","?","2026-07-19")
+    ]
+  }
+};
+
+function emptyMatch(id, home, away, date){
+  return {id, date, time:"--:--", home, away, scoreHome:null, scoreAway:null, status:"À venir",
+          scorersHome:[], scorersAway:[], stats:null};
+}
+
+function buildGroups(){
+  // Ordre des rencontres dans une poule de 4 (1ère, 2e, 3e journée), dates indicatives —
+  // seront corrigées automatiquement par fetchLiveData() au chargement.
+  const pairOrder = [[0,1],[2,3],[0,2],[1,3],[0,3],[1,2]];
+  const matchdayDates = ["2026-06-11","2026-06-17","2026-06-23"];
+
+  Object.entries(DATA.teamsByGroup).forEach(([key, teams])=>{
+    const matches = pairOrder.map((pair,i)=>{
+      const matchday = Math.floor(i/2);
+      const id = key.toLowerCase()+(i+1);
+      return emptyMatch(id, teams[pair[0]].code, teams[pair[1]].code, matchdayDates[matchday]);
+    });
+    DATA.groups[key] = { teams, matches };
+  });
+}
+buildGroups();
+const COUNTRY_NAMES = {};
+Object.values(DATA.groups).forEach(g=>g.teams.forEach(t=>COUNTRY_NAMES[t.code]=t.name));
+
+/* =========================================================
+   UTILITAIRES
+   ========================================================= */
+function flag(code){
+  if(code==="?") return `<span style="opacity:.4">🏳️</span>`;
+  return `<span class="flag-icon flag-icon-${code}"></span>`;
+}
+function countryName(code){ return COUNTRY_NAMES[code] || code.toUpperCase(); }
+
+function computeStandings(group){
+  const table = {};
+  group.teams.forEach(t=>table[t.code]={code:t.code, name:t.name, pts:0, j:0, g:0, n:0, p:0, bp:0, bc:0});
+  group.matches.forEach(m=>{
+    if(m.scoreHome===null) return;
+    const h=table[m.home], a=table[m.away];
+    h.j++; a.j++;
+    h.bp+=m.scoreHome; h.bc+=m.scoreAway;
+    a.bp+=m.scoreAway; a.bc+=m.scoreHome;
+    if(m.scoreHome>m.scoreAway){h.pts+=3; h.g++; a.p++;}
+    else if(m.scoreHome<m.scoreAway){a.pts+=3; a.g++; h.p++;}
+    else{h.pts+=1; a.pts+=1; h.n++; a.n++;}
+  });
+  return Object.values(table).sort((x,y)=> y.pts-x.pts || (y.bp-y.bc)-(x.bp-x.bc) || y.bp-x.bp);
+}
+
+/* =========================================================
+   RENDU — onglets
+   ========================================================= */
+const tabsEl = document.getElementById('tabs');
+const contentEl = document.getElementById('content');
+const groupKeys = Object.keys(DATA.groups);
+
+groupKeys.forEach((key,i)=>{
+  const btn = document.createElement('button');
+  btn.className='tab-btn'+(i===0?' active':'');
+  btn.textContent='Groupe '+key;
+  btn.onclick=()=>showGroup(key, btn);
+  tabsEl.appendChild(btn);
+});
+const koBtn = document.createElement('button');
+koBtn.className='tab-btn';
+koBtn.textContent='Phase finale';
+koBtn.onclick=()=>showKnockout(koBtn);
+tabsEl.appendChild(koBtn);
+
+function setActive(btn){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function showGroup(key, btn){
+  setActive(btn);
+  const g = DATA.groups[key];
+  const standings = computeStandings(g);
+
+  let html = `<div class="group-card" style="max-width:600px;margin:0 auto 20px;">
+    <h2>Groupe ${key} — Classement</h2>
+    <table class="standings">
+      <tr><th style="text-align:left">Équipe</th><th>J</th><th>G</th><th>N</th><th>P</th><th>BP</th><th>BC</th><th>Pts</th></tr>
+      ${standings.map(t=>`
+        <tr>
+          <td class="team" onclick="showCountry('${t.code}')">${flag(t.code)} ${t.name}</td>
+          <td>${t.j}</td><td>${t.g}</td><td>${t.n}</td><td>${t.p}</td><td>${t.bp}</td><td>${t.bc}</td><td><b>${t.pts}</b></td>
+        </tr>`).join('')}
+    </table>
+  </div>
+  <div class="group-card" style="max-width:600px;margin:0 auto;">
+    <h2>Matchs</h2>
+    ${g.matches.map(m=>matchRow(m)).join('')}
+  </div>`;
+  contentEl.innerHTML = html;
+}
+
+function matchRow(m){
+  const score = m.scoreHome===null ? 'vs' : `${m.scoreHome} - ${m.scoreAway}`;
+  return `<div class="match" onclick="showMatch('${m.id}')">
+    <div class="teams">
+      <span class="team-name">${flag(m.home)} ${countryName(m.home)}</span>
+      <span class="score">${score}</span>
+      <span class="team-name">${countryName(m.away)} ${flag(m.away)}</span>
+    </div>
+    <div class="meta">${formatDate(m.date)}<br>${m.time} • ${m.status}</div>
+  </div>`;
+}
+
+function formatDate(d){
+  const date = new Date(d+"T00:00:00");
+  return date.toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
+}
+
+function showKnockout(btn){
+  setActive(btn);
+  let html = `<div class="knockout">`;
+  Object.entries(DATA.knockout).forEach(([round, matches])=>{
+    html += `<div class="ko-round"><h2>${round}</h2><div class="ko-grid">
+      ${matches.map(m=>matchRow(m)).join('')}
+    </div></div>`;
+  });
+  html += `</div>`;
+  contentEl.innerHTML = html;
+}
+
+/* =========================================================
+   MODAL MATCH
+   ========================================================= */
+const allMatches = {};
+[...Object.values(DATA.groups).flatMap(g=>g.matches), ...Object.values(DATA.knockout).flatMap(a=>a)]
+  .forEach(m=>allMatches[m.id]=m);
+
+function showMatch(id){
+  const m = allMatches[id];
+  const modal = document.getElementById('matchModal');
+
+  let body = `<button class="close-btn" onclick="closeOverlay('matchOverlay')">✕</button>
+    <h2>${countryName(m.home)} — ${countryName(m.away)}</h2>
+    <div class="modal-score">
+      <span>${flag(m.home)}</span>
+      <span>${m.scoreHome===null?'-':m.scoreHome} <span class="vs">:</span> ${m.scoreAway===null?'-':m.scoreAway}</span>
+      <span>${flag(m.away)}</span>
+    </div>
+    <div class="modal-meta">${formatDate(m.date)} • ${m.time} • ${m.status}</div>`;
+
+  if(m.scoreHome!==null){
+    body += `<div class="scorers">
+      <div><b>${countryName(m.home)}</b><ul>${m.scorersHome.length? m.scorersHome.map(s=>`<li>⚽ ${s.name} (${s.min}')</li>`).join('') : '<li>—</li>'}</ul></div>
+      <div style="text-align:right"><b>${countryName(m.away)}</b><ul>${m.scorersAway.length? m.scorersAway.map(s=>`<li>${s.name} (${s.min}') ⚽</li>`).join('') : '<li>—</li>'}</ul></div>
+    </div>`;
+  }
+
+  if(m.stats){
+    const labels = {
+      possession:'Possession (%)', shots:'Tirs', shotsOnTarget:'Tirs cadrés',
+      corners:'Corners', fouls:'Fautes', yellow:'Cartons jaunes', red:'Cartons rouges', passes:'Passes'
+    };
+    body += `<table class="stats-table">`;
+    Object.entries(labels).forEach(([key,label])=>{
+      const [h,a] = m.stats[key];
+      const max = Math.max(h,a,1);
+      body += `<tr>
+        <td class="val left">${h}<div class="bar-wrap"><div class="bar home" style="width:${(h/max*100)}%"></div></div></td>
+        <td class="label">${label}</td>
+        <td class="val right">${a}<div class="bar-wrap"><div class="bar away" style="width:${(a/max*100)}%; margin-left:auto;"></div></div></td>
+      </tr>`;
+    });
+    body += `</table>`;
+  } else {
+    body += `<p style="text-align:center; color:var(--muted); margin-top:10px;">Statistiques disponibles après le match.</p>`;
+  }
+
+  modal.innerHTML = body;
+  document.getElementById('matchOverlay').classList.add('show');
+}
+
+/* =========================================================
+   MODAL PAYS — statistiques agrégées et normalisées
+   ========================================================= */
+function getCountryMatches(code){
+  const all = [...Object.values(DATA.groups).flatMap(g=>g.matches), ...Object.values(DATA.knockout).flatMap(a=>a)];
+  return all.filter(m=> (m.home===code || m.away===code) && m.scoreHome!==null && m.stats);
+}
+
+function showCountry(code){
+  const matches = getCountryMatches(code);
+  const modal = document.getElementById('countryModal');
+
+  if(matches.length===0){
+    modal.innerHTML = `<button class="close-btn" onclick="closeOverlay('countryOverlay')">✕</button>
+      <div class="country-flag-header">${flag(code)} <span>${countryName(code)}</span></div>
+      <p style="text-align:center; color:var(--muted); margin-top:15px;">Aucune statistique disponible (match(s) non encore joué(s)).</p>`;
+    document.getElementById('countryOverlay').classList.add('show');
+    return;
+  }
+
+  // Agrégation
+  let agg = {possession:0, shots:0, shotsOnTarget:0, corners:0, fouls:0, yellow:0, red:0, passes:0,
+             goalsFor:0, goalsAgainst:0, wins:0, draws:0, losses:0};
+  matches.forEach(m=>{
+    const isHome = m.home===code;
+    const my = isHome?0:1, opp = isHome?1:0;
+    Object.keys(agg).forEach(k=>{
+      if(['goalsFor','goalsAgainst','wins','draws','losses'].includes(k)) return;
+      agg[k] += m.stats[k][my];
+    });
+    const gf = isHome?m.scoreHome:m.scoreAway;
+    const ga = isHome?m.scoreAway:m.scoreHome;
+    agg.goalsFor+=gf; agg.goalsAgainst+=ga;
+    if(gf>ga) agg.wins++; else if(gf===ga) agg.draws++; else agg.losses++;
+  });
+  const n = matches.length;
+  const avg = {};
+  Object.keys(agg).forEach(k=>avg[k]= ['goalsFor','goalsAgainst','wins','draws','losses'].includes(k) ? agg[k] : (agg[k]/n));
+
+  // Plages de normalisation indicatives (par match) pour comparer les pays sur 0-100
+  const ranges = {
+    possession:[30,70], shots:[3,20], shotsOnTarget:[1,10], corners:[0,10],
+    fouls:[5,18], passes:[250,650], goalsFor:[0,4]
+  };
+  function norm(val, key){
+    const [mn,mx] = ranges[key];
+    return Math.max(0, Math.min(100, ((val-mn)/(mx-mn))*100));
+  }
+  const goalsForAvg = agg.goalsFor/n;
+
+  const rows = [
+    {label:'Possession moyenne', val:avg.possession.toFixed(1)+'%', key:'possession', raw:avg.possession},
+    {label:'Buts marqués / match', val:goalsForAvg.toFixed(2), key:'goalsFor', raw:goalsForAvg},
+    {label:'Tirs / match', val:avg.shots.toFixed(1), key:'shots', raw:avg.shots},
+    {label:'Tirs cadrés / match', val:avg.shotsOnTarget.toFixed(1), key:'shotsOnTarget', raw:avg.shotsOnTarget},
+    {label:'Corners / match', val:avg.corners.toFixed(1), key:'corners', raw:avg.corners},
+    {label:'Fautes / match', val:avg.fouls.toFixed(1), key:'fouls', raw:avg.fouls},
+    {label:'Passes / match', val:Math.round(avg.passes), key:'passes', raw:avg.passes},
+  ];
+
+  let body = `<button class="close-btn" onclick="closeOverlay('countryOverlay')">✕</button>
+    <div class="country-flag-header">${flag(code)} <span>${countryName(code)}</span></div>
+    <p style="text-align:center; color:var(--muted); margin-bottom:10px;">${n} match(s) joué(s) — ${agg.wins}V ${agg.draws}N ${agg.losses}D • ${agg.goalsFor} buts marqués / ${agg.goalsAgainst} encaissés</p>
+    <div class="country-stats">
+      <h3>Statistiques moyennes (normalisées 0-100)</h3>
+      ${rows.map(r=>`
+        <div class="country-row">
+          <div class="clabel">${r.label}</div>
+          <div class="cbar-wrap"><div class="cbar" style="width:${norm(r.raw,r.key).toFixed(0)}%"></div></div>
+          <div class="cval">${r.val}</div>
+        </div>`).join('')}
+    </div>
+    <p style="text-align:center; color:var(--muted); font-size:.75rem; margin-top:10px;">
+      Les barres comparent chaque statistique sur une échelle commune (0-100), basée sur des plages réalistes de la compétition, afin de comparer facilement les équipes entre elles.
+    </p>`;
+
+  modal.innerHTML = body;
+  document.getElementById('countryOverlay').classList.add('show');
+}
+
+function closeOverlay(id){
+  document.getElementById(id).classList.remove('show');
+}
+document.querySelectorAll('.overlay').forEach(o=>{
+  o.addEventListener('click', e=>{ if(e.target===o) o.classList.remove('show'); });
+});
+
+/* =========================================================
+   MISE À JOUR AUTOMATIQUE AU CHARGEMENT
+   Tente de récupérer les résultats/calendriers réels via
+   l'API publique gratuite TheSportsDB et met à jour DATA.
+   Si l'appel échoue (hors-ligne, CORS, etc.), l'app reste
+   utilisable avec les données locales ci-dessus.
+   ========================================================= */
+
+// Correspondance nom d'équipe (API, en anglais) -> code ISO utilisé dans l'app
+const NAME_TO_CODE = {
+  "Mexico":"mx","South Korea":"kr","Korea Republic":"kr","Czech Republic":"cz","Czechia":"cz","South Africa":"za",
+  "Canada":"ca","Bosnia and Herzegovina":"ba","Bosnia-Herzegovina":"ba","Switzerland":"ch","Qatar":"qa",
+  "Brazil":"br","Morocco":"ma","Haiti":"ht","Scotland":"gb-sct",
+  "USA":"us","United States":"us","Paraguay":"py","Australia":"au","Turkey":"tr","Türkiye":"tr",
+  "Germany":"de","Curacao":"cw","Curaçao":"cw","Ivory Coast":"ci","Côte d'Ivoire":"ci","Cote d'Ivoire":"ci","Ecuador":"ec",
+  "Netherlands":"nl","Japan":"jp","Sweden":"se","Tunisia":"tn",
+  "Belgium":"be","Egypt":"eg","Iran":"ir","IR Iran":"ir","New Zealand":"nz",
+  "Spain":"es","Cape Verde":"cv","Cabo Verde":"cv","Saudi Arabia":"sa","Uruguay":"uy",
+  "France":"fr","Senegal":"sn","Sénégal":"sn","Iraq":"iq","Norway":"no",
+  "Argentina":"ar","Algeria":"dz","Austria":"at","Jordan":"jo",
+  "Portugal":"pt","DR Congo":"cd","Congo DR":"cd","DRC":"cd","Uzbekistan":"uz","Colombia":"co",
+  "England":"gb-eng","Croatia":"hr","Ghana":"gh","Panama":"pa"
+};
+
+function findMatchByTeams(homeCode, awayCode){
+  const all = [...Object.values(DATA.groups).flatMap(g=>g.matches), ...Object.values(DATA.knockout).flatMap(a=>a)];
+  return all.find(m => (m.home===homeCode && m.away===awayCode) || (m.home===awayCode && m.away===homeCode));
+}
+
+async function fetchLiveData(){
+  const banner = document.getElementById('updateBanner');
+  banner.textContent = "⏳ Mise à jour des résultats en cours…";
+  try{
+    // Saison Coupe du Monde 2026, ligue FIFA World Cup (id 4429) sur TheSportsDB
+    const res = await fetch("https://www.thesportsdb.com/api/v1/json/3/eventsseason.php?id=4429&s=2026");
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const json = await res.json();
+    const events = json.events || [];
+    let updated = 0;
+
+    events.forEach(ev=>{
+      const homeCode = NAME_TO_CODE[ev.strHomeTeam];
+      const awayCode = NAME_TO_CODE[ev.strAwayTeam];
+      if(!homeCode || !awayCode) return; // équipe pas encore connue dans l'app
+
+      const m = findMatchByTeams(homeCode, awayCode);
+      if(!m) return;
+
+      // Date / heure
+      if(ev.dateEvent) m.date = ev.dateEvent;
+      if(ev.strTime) m.time = ev.strTime.slice(0,5);
+
+      // Score si le match a été joué
+      if(ev.intHomeScore!==null && ev.intHomeScore!=="" && ev.intAwayScore!==null && ev.intAwayScore!==""){
+        const homeScore = parseInt(ev.intHomeScore);
+        const awayScore = parseInt(ev.intAwayScore);
+        // Respecter l'orientation home/away définie dans DATA
+        if(m.home===homeCode){
+          m.scoreHome = homeScore; m.scoreAway = awayScore;
+        } else {
+          m.scoreHome = awayScore; m.scoreAway = homeScore;
+        }
+        m.status = "FT";
+        updated++;
+      } else if(ev.strStatus && ev.strStatus.toLowerCase().includes("live")){
+        m.status = "EN DIRECT";
+      }
+    });
+
+    banner.textContent = updated>0
+      ? `✅ ${updated} match(s) mis à jour depuis TheSportsDB.`
+      : "ℹ️ Aucune mise à jour disponible (les matchs n'ont peut-être pas encore commencé) — données locales affichées.";
+
+  }catch(err){
+    banner.textContent = "⚠️ Mise à jour automatique indisponible (hors-ligne ou API inaccessible) — données locales affichées.";
+    console.warn("fetchLiveData error:", err);
+  }finally{
+    // Recalculer l'index des matchs et réafficher l'onglet courant
+    Object.keys(allMatches).forEach(k=>delete allMatches[k]);
+    [...Object.values(DATA.groups).flatMap(g=>g.matches), ...Object.values(DATA.knockout).flatMap(a=>a)]
+      .forEach(m=>allMatches[m.id]=m);
+
+    const activeBtn = tabsEl.querySelector('.tab-btn.active');
+    if(activeBtn && activeBtn.textContent.startsWith('Groupe')){
+      showGroup(activeBtn.textContent.replace('Groupe ','').trim(), activeBtn);
+    } else if(activeBtn){
+      showKnockout(activeBtn);
+    }
+
+    setTimeout(()=>{ banner.style.opacity='0'; }, 6000);
+  }
+}
+
+/* Affichage initial */
+showGroup(groupKeys[0], tabsEl.querySelector('.tab-btn'));
+fetchLiveData();
+</script>
+</body>
+</html>
