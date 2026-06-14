@@ -60,6 +60,9 @@ table.standings tr:nth-child(odd) td{background:#ffffff05;}
 .match .teams{display:flex; align-items:center; gap:8px;}
 .match .team-name{min-width:90px;}
 .match .score{font-weight:bold; color:var(--gold); min-width:50px; text-align:center;}
+.match .score.live{color:#ff5a5f; animation:pulse 1.5s infinite;}
+.live-badge{color:#ff5a5f; font-weight:bold;}
+@keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.4;}}
 .match .meta{color:var(--muted); font-size:.75rem; text-align:right;}
 .flag-icon{font-size:1.2em; border-radius:2px;}
 
@@ -170,7 +173,7 @@ DATA.groups = {
     M("b6","ba","qa","2026-06-24","21:00")
   ]},
   C: { teams: TEAMS.C, matches: [
-    M("c1","br","ma","2026-06-14","00:00"),
+    M("c1","br","ma","2026-06-14","00:00",1,1),
     M("c2","ht","gb-sct","2026-06-14","03:00"),
     M("c3","gb-sct","ma","2026-06-20","00:00"),
     M("c4","br","ht","2026-06-20","02:30"),
@@ -383,13 +386,16 @@ function showGroup(key, btn){
 }
 
 function matchRow(m, showRound){
+  const isLive = m.status==="En direct";
   const score = m.scoreHome===null ? 'vs' : `${m.scoreHome} - ${m.scoreAway}`;
+  const scoreHtml = isLive ? `<span class="score live">${score}</span>` : `<span class="score">${score}</span>`;
   const teamsHtml = (m.home==="?")
     ? `<span class="team-name" style="min-width:auto; font-size:.8rem; color:var(--muted);">${m.label||'À déterminer'}</span>`
     : `<span class="team-name">${flag(m.home)} ${countryName(m.home)}</span>
-       <span class="score">${score}</span>
+       ${scoreHtml}
        <span class="team-name">${countryName(m.away)} ${flag(m.away)}</span>`;
-  const metaExtra = showRound ? m.round : m.status;
+  const statusHtml = isLive ? `<span class="live-badge">🔴 ${m.liveMinute? m.liveMinute+"' ":""}En direct</span>` : m.status;
+  const metaExtra = showRound ? m.round : statusHtml;
   return `<div class="match" onclick="showMatch('${m.id}')">
     <div class="teams">
       ${teamsHtml}
@@ -457,16 +463,18 @@ function showMatch(id){
   const titleHtml = (m.home==="?")
     ? m.label
     : `${countryName(m.home)} — ${countryName(m.away)}`;
+  const isLive = m.status==="En direct";
   const flagsHtml = (m.home==="?")
     ? `<span style="font-size:1rem; color:var(--muted);">Équipes à déterminer</span>`
     : `<span>${flag(m.home)}</span>
-       <span>${m.scoreHome===null?'-':m.scoreHome} <span class="vs">:</span> ${m.scoreAway===null?'-':m.scoreAway}</span>
+       <span class="${isLive?'live':''}">${m.scoreHome===null?'-':m.scoreHome} <span class="vs">:</span> ${m.scoreAway===null?'-':m.scoreAway}</span>
        <span>${flag(m.away)}</span>`;
+  const statusHtml = isLive ? `<span class="live-badge">🔴 ${m.liveMinute? m.liveMinute+"' ":""}En direct</span>` : m.status;
 
   let body = `<button class="close-btn" onclick="closeOverlay('matchOverlay')">✕</button>
     <h2>${titleHtml}</h2>
     <div class="modal-score">${flagsHtml}</div>
-    <div class="modal-meta">${formatDate(m.date)} • ${m.time} (heure de Paris) • ${m.status}</div>`;
+    <div class="modal-meta">${formatDate(m.date)} • ${m.time} (heure de Paris) • ${statusHtml}</div>`;
 
   modal.innerHTML = body;
   document.getElementById('matchOverlay').classList.add('show');
@@ -508,9 +516,9 @@ function findMatchByTeams(homeCode, awayCode){
   return all.find(m => (m.home===homeCode && m.away===awayCode) || (m.home===awayCode && m.away===homeCode));
 }
 
-async function fetchLiveData(){
+async function fetchLiveData(silent){
   const banner = document.getElementById('updateBanner');
-  banner.textContent = "⏳ Mise à jour des résultats en cours…";
+  if(!silent) banner.textContent = "⏳ Mise à jour des résultats en cours…";
   try{
     // Ligue FIFA World Cup (id 4429) sur TheSportsDB. La saison 2026 y est
     // référencée sous la forme "2026-2027" ; on essaie ce format, puis
@@ -552,7 +560,28 @@ async function fetchLiveData(){
         }
       }
 
-      // Score si le match a été joué
+      // Statut de la rencontre, à partir du champ renvoyé par l'API
+      const rawStatus = (ev.strStatus||"").trim();
+      const s = rawStatus.toLowerCase();
+      const finishedStatuses = ["ft","aet","pen","match finished","finished","ftpen","ftet"];
+      const notStartedStatuses = ["ns","not started","",null];
+
+      let newStatus = m.status;
+      if(finishedStatuses.includes(s)){
+        newStatus = "Terminé";
+      } else if(notStartedStatuses.includes(s)){
+        newStatus = "À venir";
+      } else {
+        // tout le reste (1H, 2H, HT, ET, minute en cours, "Live"...) = match en cours
+        newStatus = "En direct";
+        // si le statut est une minute de jeu (ex: "55"), on la garde pour l'affichage
+        if(/^\d+(\+\d+)?'?$/.test(rawStatus)) m.liveMinute = rawStatus.replace("'","");
+        else if(s==="ht") m.liveMinute = "MT";
+        else m.liveMinute = null;
+      }
+      m.status = newStatus;
+
+      // Score : mis à jour dès qu'il est disponible (match en cours ou terminé)
       if(ev.intHomeScore!==null && ev.intHomeScore!=="" && ev.intAwayScore!==null && ev.intAwayScore!==""){
         const homeScore = parseInt(ev.intHomeScore);
         const awayScore = parseInt(ev.intAwayScore);
@@ -562,24 +591,23 @@ async function fetchLiveData(){
         } else {
           m.scoreHome = awayScore; m.scoreAway = homeScore;
         }
-        m.status = "Terminé";
-        updated++;
-      } else if(ev.strStatus){
-        const s = ev.strStatus.toLowerCase();
-        if(s.includes("live") || s.includes("1h") || s.includes("2h") || s.includes("ht")){
-          m.status = "En direct";
-        } else {
-          m.status = "À venir";
-        }
+        if(newStatus!=="À venir") updated++;
       }
     });
 
-    banner.textContent = updated>0
-      ? `✅ ${updated} match(s) mis à jour depuis TheSportsDB.`
-      : "ℹ️ Aucune mise à jour disponible (les matchs n'ont peut-être pas encore commencé) — données locales affichées.";
+    const live = [...Object.values(DATA.groups).flatMap(g=>g.matches), ...Object.values(DATA.knockout).flatMap(a=>a)]
+      .filter(m=>m.status==="En direct").length;
+
+    if(!silent){
+      let msg;
+      if(updated>0) msg = `✅ ${updated} match(s) mis à jour depuis TheSportsDB.`;
+      else msg = "ℹ️ Aucune mise à jour disponible — données locales affichées.";
+      if(live>0) msg += ` 🔴 ${live} match(s) en direct.`;
+      banner.textContent = msg;
+    }
 
   }catch(err){
-    banner.textContent = "⚠️ Mise à jour automatique indisponible (hors-ligne ou API inaccessible) — données locales affichées.";
+    if(!silent) banner.textContent = "⚠️ Mise à jour automatique indisponible (hors-ligne ou API inaccessible) — données locales affichées.";
     console.warn("fetchLiveData error:", err);
   }finally{
     // Recalculer l'index des matchs et réafficher l'onglet courant
@@ -596,13 +624,21 @@ async function fetchLiveData(){
       showKnockout(activeBtn);
     }
 
-    setTimeout(()=>{ banner.style.opacity='0'; }, 6000);
+    if(!silent){
+      banner.style.opacity='1';
+      setTimeout(()=>{ banner.style.opacity='0'; }, 6000);
+    }
   }
 }
 
 /* Affichage initial */
 showGroup(groupKeys[0], tabsEl.querySelector('.tab-btn'));
 fetchLiveData();
+
+// Rafraîchissement automatique en arrière-plan (toutes les 60s) pour les
+// scores des matchs en direct, sans réafficher la bannière.
+setInterval(()=>fetchLiveData(true), 60000);
 </script>
+
 </body>
 </html>
