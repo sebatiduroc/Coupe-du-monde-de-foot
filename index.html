@@ -174,15 +174,15 @@ DATA.groups = {
   ]},
   C: { teams: TEAMS.C, matches: [
     M("c1","br","ma","2026-06-14","00:00",1,1),
-    M("c2","ht","gb-sct","2026-06-14","03:00"),
+    M("c2","ht","gb-sct","2026-06-14","03:00",0,1),
     M("c3","gb-sct","ma","2026-06-20","00:00"),
     M("c4","br","ht","2026-06-20","02:30"),
     M("c5","gb-sct","br","2026-06-25","00:00"),
     M("c6","ma","ht","2026-06-25","00:00")
   ]},
   D: { teams: TEAMS.D, matches: [
-    M("d1","us","py","2026-06-13","03:00"),
-    M("d2","au","tr","2026-06-14","06:00"),
+    M("d1","us","py","2026-06-13","03:00",4,1),
+    M("d2","au","tr","2026-06-14","06:00",2,0),
     M("d3","us","au","2026-06-19","21:00"),
     M("d4","tr","py","2026-06-20","05:00"),
     M("d5","tr","us","2026-06-26","04:00"),
@@ -619,10 +619,12 @@ async function fetchFromFootballData(){
 async function fetchFromTheSportsDB(){
   const TSDB_KEY = "123";
 
-  // On interroge hier, aujourd'hui et demain (heure de Paris) pour couvrir
-  // les matchs en cours ou qui viennent de se terminer.
+  // On interroge une fenêtre large (J-3 à J+1, heure de Paris) : certains matchs
+  // matinaux côté Europe se jouent la veille au soir aux États-Unis/Canada/Mexique,
+  // et TheSportsDB peut classer l'évènement sous cette date locale du stade,
+  // jusqu'à 2 jours avant la date "Paris" du match.
   const now = new Date();
-  const dates = [-1,0,1].map(offset=>{
+  const dates = [-3,-2,-1,0,1].map(offset=>{
     const d = new Date(now.getTime() + offset*86400000);
     const parts = new Intl.DateTimeFormat('en-CA', {
       timeZone:'Europe/Paris', year:'numeric', month:'2-digit', day:'2-digit'
