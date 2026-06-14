@@ -348,6 +348,12 @@ koBtn.textContent='Phase finale';
 koBtn.onclick=()=>showKnockout(koBtn);
 tabsEl.appendChild(koBtn);
 
+const upcomingBtn = document.createElement('button');
+upcomingBtn.className='tab-btn';
+upcomingBtn.textContent='Matchs à venir';
+upcomingBtn.onclick=()=>showUpcoming(upcomingBtn);
+tabsEl.appendChild(upcomingBtn);
+
 function setActive(btn){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
@@ -376,18 +382,19 @@ function showGroup(key, btn){
   contentEl.innerHTML = html;
 }
 
-function matchRow(m){
+function matchRow(m, showRound){
   const score = m.scoreHome===null ? 'vs' : `${m.scoreHome} - ${m.scoreAway}`;
   const teamsHtml = (m.home==="?")
     ? `<span class="team-name" style="min-width:auto; font-size:.8rem; color:var(--muted);">${m.label||'À déterminer'}</span>`
     : `<span class="team-name">${flag(m.home)} ${countryName(m.home)}</span>
        <span class="score">${score}</span>
        <span class="team-name">${countryName(m.away)} ${flag(m.away)}</span>`;
+  const metaExtra = showRound ? m.round : m.status;
   return `<div class="match" onclick="showMatch('${m.id}')">
     <div class="teams">
       ${teamsHtml}
     </div>
-    <div class="meta">${formatDate(m.date)}<br>${m.time} • ${m.status}</div>
+    <div class="meta">${formatDate(m.date)}<br>${m.time} • ${metaExtra}</div>
   </div>`;
 }
 
@@ -405,6 +412,34 @@ function showKnockout(btn){
     </div></div>`;
   });
   html += `</div>`;
+  contentEl.innerHTML = html;
+}
+
+function showUpcoming(btn){
+  setActive(btn);
+
+  // Rassemble tous les matchs avec leur poule/tour, ne garde que ceux non joués,
+  // triés par date puis heure.
+  const all = [];
+  Object.entries(DATA.groups).forEach(([key,g])=>{
+    g.matches.forEach(m=> all.push({...m, round:'Groupe '+key}));
+  });
+  Object.entries(DATA.knockout).forEach(([round,matches])=>{
+    matches.forEach(m=> all.push({...m, round}));
+  });
+
+  const upcoming = all
+    .filter(m=> m.status!=="Terminé")
+    .sort((a,b)=>{
+      const ta = `${a.date}T${a.time==="--:--"?"00:00":a.time}`;
+      const tb = `${b.date}T${b.time==="--:--"?"00:00":b.time}`;
+      return ta.localeCompare(tb);
+    });
+
+  let html = `<div class="group-card" style="max-width:600px;margin:0 auto;">
+    <h2>Matchs à venir (${upcoming.length})</h2>
+    ${upcoming.map(m=>matchRow(m, true)).join('')}
+  </div>`;
   contentEl.innerHTML = html;
 }
 
@@ -555,6 +590,8 @@ async function fetchLiveData(){
     const activeBtn = tabsEl.querySelector('.tab-btn.active');
     if(activeBtn && activeBtn.textContent.startsWith('Groupe')){
       showGroup(activeBtn.textContent.replace('Groupe ','').trim(), activeBtn);
+    } else if(activeBtn && activeBtn.textContent==='Matchs à venir'){
+      showUpcoming(activeBtn);
     } else if(activeBtn){
       showKnockout(activeBtn);
     }
