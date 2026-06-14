@@ -385,16 +385,41 @@ function showGroup(key, btn){
   contentEl.innerHTML = html;
 }
 
+// Heure de coup d'envoi en timestamp UTC, à partir d'une date/heure exprimées
+// en heure de Paris. Le tournoi se déroule entièrement en heure d'été (UTC+2).
+function kickoffUTC(m){
+  if(!m.time || m.time==="--:--") return null;
+  const [y,mo,d] = m.date.split('-').map(Number);
+  const [h,mi] = m.time.split(':').map(Number);
+  return Date.UTC(y, mo-1, d, h-2, mi);
+}
+
+// Si l'API n'a pas (encore) mis à jour un match dont l'heure de coup d'envoi
+// est déjà passée, on affiche un statut estimé plutôt que "À venir" (trompeur).
+function effectiveStatus(m){
+  if(m.status!=="À venir" || m.home==="?") return m.status;
+  const ko = kickoffUTC(m);
+  if(ko===null) return m.status;
+  const elapsedMin = (Date.now()-ko)/60000;
+  if(elapsedMin < 0) return "À venir";
+  if(elapsedMin < 130) return "En direct (estimation)";
+  return "Terminé (résultat à confirmer)";
+}
+
 function matchRow(m, showRound){
-  const isLive = m.status==="En direct";
-  const score = m.scoreHome===null ? 'vs' : `${m.scoreHome} - ${m.scoreAway}`;
+  const status = effectiveStatus(m);
+  const isLive = status.startsWith("En direct");
+  const pending = status==="Terminé (résultat à confirmer)" && m.scoreHome===null;
+  const score = pending ? '? - ?' : (m.scoreHome===null ? 'vs' : `${m.scoreHome} - ${m.scoreAway}`);
   const scoreHtml = isLive ? `<span class="score live">${score}</span>` : `<span class="score">${score}</span>`;
   const teamsHtml = (m.home==="?")
     ? `<span class="team-name" style="min-width:auto; font-size:.8rem; color:var(--muted);">${m.label||'À déterminer'}</span>`
     : `<span class="team-name">${flag(m.home)} ${countryName(m.home)}</span>
        ${scoreHtml}
        <span class="team-name">${countryName(m.away)} ${flag(m.away)}</span>`;
-  const statusHtml = isLive ? `<span class="live-badge">🔴 ${m.liveMinute? m.liveMinute+"' ":""}En direct</span>` : m.status;
+  const statusHtml = isLive
+    ? `<span class="live-badge">🔴 ${m.liveMinute? m.liveMinute+"' ":""}En direct${status.includes('estimation')?' (estimation)':''}</span>`
+    : status;
   const metaExtra = showRound ? m.round : statusHtml;
   return `<div class="match" onclick="showMatch('${m.id}')">
     <div class="teams">
@@ -435,7 +460,7 @@ function showUpcoming(btn){
   });
 
   const upcoming = all
-    .filter(m=> m.status!=="Terminé")
+    .filter(m=> effectiveStatus(m)==="À venir")
     .sort((a,b)=>{
       const ta = `${a.date}T${a.time==="--:--"?"00:00":a.time}`;
       const tb = `${b.date}T${b.time==="--:--"?"00:00":b.time}`;
@@ -463,13 +488,17 @@ function showMatch(id){
   const titleHtml = (m.home==="?")
     ? m.label
     : `${countryName(m.home)} — ${countryName(m.away)}`;
-  const isLive = m.status==="En direct";
+  const status = effectiveStatus(m);
+  const isLive = status.startsWith("En direct");
+  const pending = status==="Terminé (résultat à confirmer)" && m.scoreHome===null;
   const flagsHtml = (m.home==="?")
     ? `<span style="font-size:1rem; color:var(--muted);">Équipes à déterminer</span>`
     : `<span>${flag(m.home)}</span>
-       <span class="${isLive?'live':''}">${m.scoreHome===null?'-':m.scoreHome} <span class="vs">:</span> ${m.scoreAway===null?'-':m.scoreAway}</span>
+       <span class="${isLive?'live':''}">${pending?'?':(m.scoreHome===null?'-':m.scoreHome)} <span class="vs">:</span> ${pending?'?':(m.scoreAway===null?'-':m.scoreAway)}</span>
        <span>${flag(m.away)}</span>`;
-  const statusHtml = isLive ? `<span class="live-badge">🔴 ${m.liveMinute? m.liveMinute+"' ":""}En direct</span>` : m.status;
+  const statusHtml = isLive
+    ? `<span class="live-badge">🔴 ${m.liveMinute? m.liveMinute+"' ":""}En direct${status.includes('estimation')?' (estimation)':''}</span>`
+    : status;
 
   let body = `<button class="close-btn" onclick="closeOverlay('matchOverlay')">✕</button>
     <h2>${titleHtml}</h2>
@@ -495,19 +524,20 @@ document.querySelectorAll('.overlay').forEach(o=>{
    utilisable avec les données locales ci-dessus.
    ========================================================= */
 
-// Correspondance nom d'équipe (API, en anglais) -> code ISO utilisé dans l'app
+// Correspondance nom d'équipe (API, en anglais) -> code ISO utilisé dans l'app.
+// Couvre les variantes de nommage de TheSportsDB ET de football-data.org.
 const NAME_TO_CODE = {
-  "Mexico":"mx","South Korea":"kr","Korea Republic":"kr","Czech Republic":"cz","Czechia":"cz","South Africa":"za",
-  "Canada":"ca","Bosnia and Herzegovina":"ba","Bosnia-Herzegovina":"ba","Switzerland":"ch","Qatar":"qa",
+  "Mexico":"mx","South Korea":"kr","Korea Republic":"kr","Korea, South":"kr","Czech Republic":"cz","Czechia":"cz","South Africa":"za",
+  "Canada":"ca","Bosnia and Herzegovina":"ba","Bosnia-Herzegovina":"ba","Bosnia & Herzegovina":"ba","Switzerland":"ch","Qatar":"qa",
   "Brazil":"br","Morocco":"ma","Haiti":"ht","Scotland":"gb-sct",
-  "USA":"us","United States":"us","Paraguay":"py","Australia":"au","Turkey":"tr","Türkiye":"tr",
+  "USA":"us","United States":"us","United States of America":"us","Paraguay":"py","Australia":"au","Turkey":"tr","Türkiye":"tr","Turkiye":"tr",
   "Germany":"de","Curacao":"cw","Curaçao":"cw","Ivory Coast":"ci","Côte d'Ivoire":"ci","Cote d'Ivoire":"ci","Ecuador":"ec",
   "Netherlands":"nl","Japan":"jp","Sweden":"se","Tunisia":"tn",
-  "Belgium":"be","Egypt":"eg","Iran":"ir","IR Iran":"ir","New Zealand":"nz",
+  "Belgium":"be","Egypt":"eg","Iran":"ir","IR Iran":"ir","Islamic Republic of Iran":"ir","New Zealand":"nz",
   "Spain":"es","Cape Verde":"cv","Cabo Verde":"cv","Saudi Arabia":"sa","Uruguay":"uy",
   "France":"fr","Senegal":"sn","Sénégal":"sn","Iraq":"iq","Norway":"no",
   "Argentina":"ar","Algeria":"dz","Austria":"at","Jordan":"jo",
-  "Portugal":"pt","DR Congo":"cd","Congo DR":"cd","DRC":"cd","Uzbekistan":"uz","Colombia":"co",
+  "Portugal":"pt","DR Congo":"cd","Congo DR":"cd","DRC":"cd","Democratic Republic of the Congo":"cd","Congo":"cd","Uzbekistan":"uz","Colombia":"co",
   "England":"gb-eng","Croatia":"hr","Ghana":"gh","Panama":"pa"
 };
 
@@ -516,118 +546,182 @@ function findMatchByTeams(homeCode, awayCode){
   return all.find(m => (m.home===homeCode && m.away===awayCode) || (m.home===awayCode && m.away===homeCode));
 }
 
+// Clé API personnelle football-data.org (lecture seule, 10 req/min).
+const FD_API_KEY = "251aacd7b52e41d9bc50a056e4c5f514";
+
+// Convertit une date UTC (objet Date) en {date, time} exprimés en heure de Paris.
+function toParis(utcDate){
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone:'Europe/Paris', year:'numeric', month:'2-digit', day:'2-digit'
+  }).formatToParts(utcDate).reduce((o,p)=>{o[p.type]=p.value; return o;},{});
+  const timeParts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone:'Europe/Paris', hour:'2-digit', minute:'2-digit'
+  }).formatToParts(utcDate).reduce((o,p)=>{o[p.type]=p.value; return o;},{});
+  return { date:`${dateParts.year}-${dateParts.month}-${dateParts.day}`, time:`${timeParts.hour}:${timeParts.minute}` };
+}
+
+// Source 1 : football-data.org (clé personnelle, fiable, statut + score en direct)
+async function fetchFromFootballData(){
+  const res = await fetch("https://api.football-data.org/v4/competitions/WC/matches", {
+    headers: { "X-Auth-Token": FD_API_KEY }
+  });
+  if(!res.ok) throw new Error("football-data.org HTTP "+res.status);
+  const json = await res.json();
+  const matches = json.matches;
+  if(!Array.isArray(matches) || matches.length===0) throw new Error("football-data.org: aucun match renvoyé");
+
+  let updated = 0;
+  matches.forEach(ev=>{
+    const homeCode = NAME_TO_CODE[ev.homeTeam && ev.homeTeam.name];
+    const awayCode = NAME_TO_CODE[ev.awayTeam && ev.awayTeam.name];
+    if(!homeCode || !awayCode) return;
+    const m = findMatchByTeams(homeCode, awayCode);
+    if(!m) return;
+
+    if(ev.utcDate){
+      const utcDate = new Date(ev.utcDate);
+      if(!isNaN(utcDate)){
+        const {date,time} = toParis(utcDate);
+        m.date = date; m.time = time;
+      }
+    }
+
+    let newStatus = m.status;
+    switch(ev.status){
+      case "FINISHED":
+      case "AWARDED":
+        newStatus = "Terminé"; break;
+      case "IN_PLAY":
+        newStatus = "En direct"; m.liveMinute = (ev.minute!=null) ? String(ev.minute) : null; break;
+      case "PAUSED":
+        newStatus = "En direct"; m.liveMinute = "MT"; break;
+      case "SCHEDULED":
+      case "TIMED":
+        newStatus = "À venir"; break;
+      // POSTPONED / SUSPENDED / CANCELLED : on ne change pas le statut existant
+    }
+    m.status = newStatus;
+
+    const ft = ev.score && ev.score.fullTime;
+    if(ft && ft.home!==null && ft.away!==null){
+      if(m.home===homeCode){ m.scoreHome=ft.home; m.scoreAway=ft.away; }
+      else { m.scoreHome=ft.away; m.scoreAway=ft.home; }
+      if(newStatus!=="À venir") updated++;
+    }
+  });
+  return updated;
+}
+
+// Source 2 (repli) : TheSportsDB — utilisée seulement si football-data.org échoue.
+async function fetchFromTheSportsDB(){
+  let events = [];
+  for(const season of ["2026-2027","2026"]){
+    const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/eventsseason.php?id=4429&s=${season}`);
+    if(!res.ok) continue;
+    const json = await res.json();
+    if(json && Array.isArray(json.events) && json.events.length){
+      events = json.events;
+      break;
+    }
+  }
+  if(events.length===0) throw new Error("TheSportsDB: aucun évènement renvoyé");
+
+  let updated = 0;
+  events.forEach(ev=>{
+    const homeCode = NAME_TO_CODE[ev.strHomeTeam];
+    const awayCode = NAME_TO_CODE[ev.strAwayTeam];
+    if(!homeCode || !awayCode) return;
+
+    const m = findMatchByTeams(homeCode, awayCode);
+    if(!m) return;
+
+    if(ev.dateEvent && ev.strTime){
+      const utcDate = new Date(`${ev.dateEvent}T${ev.strTime}Z`);
+      if(!isNaN(utcDate)){
+        const {date,time} = toParis(utcDate);
+        m.date = date; m.time = time;
+      }
+    }
+
+    const rawStatus = (ev.strStatus||"").trim();
+    const s = rawStatus.toLowerCase();
+    const finishedStatuses = ["ft","aet","pen","match finished","finished","ftpen","ftet"];
+    const notStartedStatuses = ["ns","not started","",null];
+
+    let newStatus = m.status;
+    if(finishedStatuses.includes(s)){
+      newStatus = "Terminé";
+    } else if(notStartedStatuses.includes(s)){
+      newStatus = "À venir";
+    } else {
+      newStatus = "En direct";
+      if(/^\d+(\+\d+)?'?$/.test(rawStatus)) m.liveMinute = rawStatus.replace("'","");
+      else if(s==="ht") m.liveMinute = "MT";
+      else m.liveMinute = null;
+    }
+    m.status = newStatus;
+
+    if(ev.intHomeScore!==null && ev.intHomeScore!=="" && ev.intAwayScore!==null && ev.intAwayScore!==""){
+      const homeScore = parseInt(ev.intHomeScore);
+      const awayScore = parseInt(ev.intAwayScore);
+      if(m.home===homeCode){ m.scoreHome=homeScore; m.scoreAway=awayScore; }
+      else { m.scoreHome=awayScore; m.scoreAway=homeScore; }
+      if(newStatus!=="À venir") updated++;
+    }
+  });
+  return updated;
+}
+
 async function fetchLiveData(silent){
   const banner = document.getElementById('updateBanner');
   if(!silent) banner.textContent = "⏳ Mise à jour des résultats en cours…";
+
+  let updated = 0;
+  let source = null;
+
   try{
-    // Ligue FIFA World Cup (id 4429) sur TheSportsDB. La saison 2026 y est
-    // référencée sous la forme "2026-2027" ; on essaie ce format, puis
-    // "2026" en repli si jamais la base évolue.
-    let events = [];
-    for(const season of ["2026-2027","2026"]){
-      const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/eventsseason.php?id=4429&s=${season}`);
-      if(!res.ok) continue;
-      const json = await res.json();
-      if(json && Array.isArray(json.events) && json.events.length){
-        events = json.events;
-        break;
-      }
+    updated = await fetchFromFootballData();
+    source = "football-data.org";
+  }catch(err1){
+    console.warn(err1);
+    try{
+      updated = await fetchFromTheSportsDB();
+      source = "TheSportsDB";
+    }catch(err2){
+      console.warn(err2);
     }
-    if(events.length===0) throw new Error("Aucun évènement renvoyé par l'API");
-    let updated = 0;
+  }
 
-    events.forEach(ev=>{
-      const homeCode = NAME_TO_CODE[ev.strHomeTeam];
-      const awayCode = NAME_TO_CODE[ev.strAwayTeam];
-      if(!homeCode || !awayCode) return; // équipe pas encore connue dans l'app
+  const live = [...Object.values(DATA.groups).flatMap(g=>g.matches), ...Object.values(DATA.knockout).flatMap(a=>a)]
+    .filter(m=>m.status==="En direct").length;
 
-      const m = findMatchByTeams(homeCode, awayCode);
-      if(!m) return;
-
-      // Date / heure : l'API renvoie l'horaire en UTC, on le convertit en heure de Paris
-      if(ev.dateEvent && ev.strTime){
-        const utcDate = new Date(`${ev.dateEvent}T${ev.strTime}Z`);
-        if(!isNaN(utcDate)){
-          // Format date/heure dans le fuseau Europe/Paris
-          const dateParts = new Intl.DateTimeFormat('en-CA', {
-            timeZone:'Europe/Paris', year:'numeric', month:'2-digit', day:'2-digit'
-          }).formatToParts(utcDate).reduce((o,p)=>{o[p.type]=p.value; return o;},{});
-          const timeParts = new Intl.DateTimeFormat('fr-FR', {
-            timeZone:'Europe/Paris', hour:'2-digit', minute:'2-digit'
-          }).formatToParts(utcDate).reduce((o,p)=>{o[p.type]=p.value; return o;},{});
-          m.date = `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
-          m.time = `${timeParts.hour}:${timeParts.minute}`;
-        }
-      }
-
-      // Statut de la rencontre, à partir du champ renvoyé par l'API
-      const rawStatus = (ev.strStatus||"").trim();
-      const s = rawStatus.toLowerCase();
-      const finishedStatuses = ["ft","aet","pen","match finished","finished","ftpen","ftet"];
-      const notStartedStatuses = ["ns","not started","",null];
-
-      let newStatus = m.status;
-      if(finishedStatuses.includes(s)){
-        newStatus = "Terminé";
-      } else if(notStartedStatuses.includes(s)){
-        newStatus = "À venir";
-      } else {
-        // tout le reste (1H, 2H, HT, ET, minute en cours, "Live"...) = match en cours
-        newStatus = "En direct";
-        // si le statut est une minute de jeu (ex: "55"), on la garde pour l'affichage
-        if(/^\d+(\+\d+)?'?$/.test(rawStatus)) m.liveMinute = rawStatus.replace("'","");
-        else if(s==="ht") m.liveMinute = "MT";
-        else m.liveMinute = null;
-      }
-      m.status = newStatus;
-
-      // Score : mis à jour dès qu'il est disponible (match en cours ou terminé)
-      if(ev.intHomeScore!==null && ev.intHomeScore!=="" && ev.intAwayScore!==null && ev.intAwayScore!==""){
-        const homeScore = parseInt(ev.intHomeScore);
-        const awayScore = parseInt(ev.intAwayScore);
-        // Respecter l'orientation home/away définie dans DATA
-        if(m.home===homeCode){
-          m.scoreHome = homeScore; m.scoreAway = awayScore;
-        } else {
-          m.scoreHome = awayScore; m.scoreAway = homeScore;
-        }
-        if(newStatus!=="À venir") updated++;
-      }
-    });
-
-    const live = [...Object.values(DATA.groups).flatMap(g=>g.matches), ...Object.values(DATA.knockout).flatMap(a=>a)]
-      .filter(m=>m.status==="En direct").length;
-
-    if(!silent){
-      let msg;
-      if(updated>0) msg = `✅ ${updated} match(s) mis à jour depuis TheSportsDB.`;
-      else msg = "ℹ️ Aucune mise à jour disponible — données locales affichées.";
-      if(live>0) msg += ` 🔴 ${live} match(s) en direct.`;
+  if(!silent){
+    if(source){
+      let msg = `✅ ${updated} match(s) mis à jour (${source}).`;
+      if(live>0) msg += ` 🔴 ${live} en direct.`;
       banner.textContent = msg;
+    } else {
+      banner.textContent = "⚠️ Mise à jour automatique indisponible (hors-ligne ou API inaccessible) — données locales affichées.";
     }
+  }
 
-  }catch(err){
-    if(!silent) banner.textContent = "⚠️ Mise à jour automatique indisponible (hors-ligne ou API inaccessible) — données locales affichées.";
-    console.warn("fetchLiveData error:", err);
-  }finally{
-    // Recalculer l'index des matchs et réafficher l'onglet courant
-    Object.keys(allMatches).forEach(k=>delete allMatches[k]);
-    [...Object.values(DATA.groups).flatMap(g=>g.matches), ...Object.values(DATA.knockout).flatMap(a=>a)]
-      .forEach(m=>allMatches[m.id]=m);
+  // Recalculer l'index des matchs et réafficher l'onglet courant
+  Object.keys(allMatches).forEach(k=>delete allMatches[k]);
+  [...Object.values(DATA.groups).flatMap(g=>g.matches), ...Object.values(DATA.knockout).flatMap(a=>a)]
+    .forEach(m=>allMatches[m.id]=m);
 
-    const activeBtn = tabsEl.querySelector('.tab-btn.active');
-    if(activeBtn && activeBtn.textContent.startsWith('Groupe')){
-      showGroup(activeBtn.textContent.replace('Groupe ','').trim(), activeBtn);
-    } else if(activeBtn && activeBtn.textContent==='Matchs à venir'){
-      showUpcoming(activeBtn);
-    } else if(activeBtn){
-      showKnockout(activeBtn);
-    }
+  const activeBtn = tabsEl.querySelector('.tab-btn.active');
+  if(activeBtn && activeBtn.textContent.startsWith('Groupe')){
+    showGroup(activeBtn.textContent.replace('Groupe ','').trim(), activeBtn);
+  } else if(activeBtn && activeBtn.textContent==='Matchs à venir'){
+    showUpcoming(activeBtn);
+  } else if(activeBtn){
+    showKnockout(activeBtn);
+  }
 
-    if(!silent){
-      banner.style.opacity='1';
-      setTimeout(()=>{ banner.style.opacity='0'; }, 6000);
-    }
+  if(!silent){
+    banner.style.opacity='1';
+    setTimeout(()=>{ banner.style.opacity='0'; }, 6000);
   }
 }
 
