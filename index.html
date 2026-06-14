@@ -612,17 +612,30 @@ async function fetchFromFootballData(){
   return updated;
 }
 
-// Source 2 (repli) : TheSportsDB — utilisée seulement si football-data.org échoue.
+// Source 2 (repli) : TheSportsDB — clé gratuite courante "123", requêtes
+// "eventsday.php" (par date) plutôt que "eventsseason.php" qui est plafonné
+// à 15 résultats sur le plan gratuit et ne couvrirait pas tout le tournoi.
+// Ces requêtes simples (sans en-tête personnalisé) ne posent pas de problème CORS.
 async function fetchFromTheSportsDB(){
+  const TSDB_KEY = "123";
+
+  // On interroge hier, aujourd'hui et demain (heure de Paris) pour couvrir
+  // les matchs en cours ou qui viennent de se terminer.
+  const now = new Date();
+  const dates = [-1,0,1].map(offset=>{
+    const d = new Date(now.getTime() + offset*86400000);
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone:'Europe/Paris', year:'numeric', month:'2-digit', day:'2-digit'
+    }).formatToParts(d).reduce((o,p)=>{o[p.type]=p.value; return o;},{});
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  });
+
   let events = [];
-  for(const season of ["2026-2027","2026"]){
-    const res = await fetch(`https://www.thesportsdb.com/api/v1/json/3/eventsseason.php?id=4429&s=${season}`);
+  for(const d of dates){
+    const res = await fetch(`https://www.thesportsdb.com/api/v1/json/${TSDB_KEY}/eventsday.php?d=${d}&s=Soccer`);
     if(!res.ok) continue;
     const json = await res.json();
-    if(json && Array.isArray(json.events) && json.events.length){
-      events = json.events;
-      break;
-    }
+    if(json && Array.isArray(json.events)) events.push(...json.events);
   }
   if(events.length===0) throw new Error("TheSportsDB: aucun évènement renvoyé");
 
